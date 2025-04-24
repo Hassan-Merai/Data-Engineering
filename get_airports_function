@@ -1,0 +1,28 @@
+def get_airports(latitudes, longitudes):
+  # API headers
+  headers = {
+      "X-RapidAPI-Key": API_key,
+      "X-RapidAPI-Host": "aerodatabox.p.rapidapi.com"
+  }
+
+  querystring = {"withFlightInfoOnly": "true"}
+
+  # DataFrame to store results
+  all_airports = []
+
+  for lat, lon in zip(latitudes, longitudes):
+    # Construct the URL with the latitude and longitude
+    url = f"https://aerodatabox.p.rapidapi.com/airports/search/location/{lat}/{lon}/km/50/16"
+
+    # Make the API request
+    response = requests.get(url, headers=headers, params=querystring)
+
+    if response.status_code == 200:
+      data = response.json()
+      airports = pd.json_normalize(data.get('items', []))
+      all_airports.append(airports)
+    
+
+  df= pd.concat(all_airports, ignore_index=True)
+  df = df[df['icao'] != 'EDDT']
+  return df
