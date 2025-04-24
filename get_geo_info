@@ -1,0 +1,12 @@
+def get_geo_info(cities):
+  headers = {
+    'User-Agent': 'YourAppName/1.0 (your_email@example.com)'
+    }
+  lat=[]
+  lon=[]
+  for city in cities:
+        response = requests.get('https://nominatim.openstreetmap.org/search', params={'q': city, 'format': 'json'}, headers=headers)
+        data = response.json()
+        lat.append(data[0]['lat'])
+        lon.append(data[0]['lon'])
+  return lat, lon
