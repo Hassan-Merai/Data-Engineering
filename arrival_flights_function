@@ -1,0 +1,57 @@
+import functions_framework
+from datetime import datetime, timedelta
+import pandas as pd
+from keys import password_Gans,host_Gans, API_rapid_flights
+import requests
+import pymysql
+import sqlalchemy 
+import pytz
+import datetime
+@functions_framework.http
+def arrival_flights(request):
+    schema = 'Gans'
+    host = host_Gans
+    user = "root"
+    password =password_Gans
+    port = 3306
+    connection_string = f'mysql+pymysql://{user}:{password}@{host}:{port}/{schema}'
+    from_sql = pd.read_sql('city_airport', con=connection_string)
+    list_icao= list(from_sql['airport_icao'])
+    #list_icao=['EDDB', 'EDDH', 'EDDM']
+    dic = {
+    'flight_number': [],
+    'departure_icao': [],
+    'arrival_icao': [],
+    'arrival_time': []}
+    querystring = {"withLeg":"True","direction":"Both","withCancelled":"false","withCodeshared":"false","withCargo":"false","withPrivate":"false","withLocation":"false"}
+
+    headers = {"X-RapidAPI-Key":f'{API_rapid_flights}' , "x-rapidapi-host": "aerodatabox.p.rapidapi.com"}
+    tomorrow = datetime.datetime.now() + timedelta(days=1)
+    date_ = tomorrow.strftime('%Y-%m-%d')
+  
+    times=[['00:00','12:00'],['12:01','23:59']]
+    for icao in list_icao:
+        for time in times:
+            url = f"https://aerodatabox.p.rapidapi.com/flights/airports/icao/{icao}/{date_}T{time[0]}/{date_}T{time[1]}"
+
+            response = requests.get(url, headers=headers, params=querystring)
+            json=response.json()
+            if response.status_code == 200 :
+                try:
+                    data = response.json()
+                    arrivals = data.get('arrivals', [])
+                    for i in range(len(json['arrivals'])):
+                        dic['arrival_icao'].append(icao)
+                        dic['flight_number'].append(json['arrivals'][i].get('number',0))
+                        dic['departure_icao'].append(json['arrivals'][i]['departure']['airport'].get('icao',None))
+                        dic['arrival_time'].append(json['arrivals'][i]['arrival']['scheduledTime'].get('local',None))
+                except ValueError as e:
+                    print(f"Error decoding JSON for {icao}: {e}")
+                    continue      
+            else :
+                continue
+    flight= pd.DataFrame(dic)
+    flight['arrival_time'] = pd.to_datetime(flight['arrival_time'])
+    flight.to_sql('flight', if_exists='append', con=connection_string, index=False)
+    return 'done'
+
