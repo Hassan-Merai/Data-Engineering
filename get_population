@@ -1,0 +1,24 @@
+def get_population(list_cities):
+  populations = []
+  soups= []
+  #city_id=[]
+  timestamp=[]
+  for city in cities :
+    url= f'https://en.wikipedia.org/wiki/{city}'
+    response = requests.get(url)
+    soup = BeautifulSoup(response.content, 'html.parser')
+    soups.append(soup)
+  #i=1
+  for soup in soups:
+    #city_id.append(i)
+    #i+=1
+    timestamp.append(datetime.today().strftime('%Y'))
+    city_population = soup.find(string="Population").find_next("td").get_text()
+    if city_population :
+      city_population_clean = city_population.replace(",", "")
+      populations.append(city_population_clean)
+    else :
+      populations.append(None)
+  dic ={'cityname': list_cities,'population': populations,'timestamp':timestamp}
+  population_df =pd.DataFrame(dic)
+  return population_df
