@@ -1,0 +1,57 @@
+import pandas as pd
+import requests
+from bs4 import BeautifulSoup
+from lat_lon_parser import parse
+import re
+def get_info(list_cities):
+  latitudes = []
+  longitudes = []
+  countries = []
+  soups= []
+  #city_id=[]
+  country_code =[]
+  def get_country_code(name):
+    try:
+        return pycountry.countries.search_fuzzy(name)[0].alpha_2
+    except LookupError:
+        return None
+
+  for city in list_cities :
+    url = f'https://en.wikipedia.org/wiki/{city}'
+    response= requests.get(url)
+    soup = BeautifulSoup(response.content, 'html.parser')
+    soups.append(soup)
+  #i=1
+  
+
+  
+  
+  for soup in soups:
+    latitudes.append(parse(soup.find('span', class_='latitude').get_text())) if soup.find('span', class_='latitude') else latitudes.append(None)
+    longitudes.append(parse(soup.find('span', class_='longitude').get_text())) if soup.find('span', class_='longitude') else longitudes.append(None)
+    infobox = soup.find('table', class_='infobox')
+    country_name = None
+
+    if infobox:
+        for row in infobox.find_all('tr'):
+            if 'Country' in row.text:
+                link = row.find('a')
+                if link and link.get('title'):
+                    country_name = link['title']
+                    break
+
+    if country_name:
+        countries.append(country_name)
+        try:
+            # Normalize name and get code
+            country_code.append(get_country_code(country_name))
+        except KeyError:
+            country_code.append( None)
+    
+    #countries.append((soup.find('table', class_='infobox ib-settlement vcard').find_next('td', class_= 'infobox-data')).get_text()) if soup.find('table', class_='infobox ib-settlement vcard') else countries.append(None)
+    #city_id.append(i)
+    #i+=1
+  #country_code.append((soup.find('table', class_='infobox ib-settlement vcard').find_next('a', title="ISO 3166").find_next()).get_text()) if soup.find('table', class_='infobox ib-settlement vcard') else countries.append(None)
+  dic ={'cityname': list_cities,'country_code':country_code, 'country': countries,'latitude':latitudes, 'longitude': longitudes}
+  cities_df =pd.DataFrame(dic)
+  return cities_df
