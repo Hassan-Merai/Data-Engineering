@@ -1,0 +1,63 @@
+import functions_framework
+import pandas as pd
+import requests
+import pymysql
+import sqlalchemy 
+import pytz
+import datetime
+from keys import weather_API_key, host_Gans, password_Gans
+
+@functions_framework.http
+def cities_weather(request):
+   schema = 'Gans'
+   host = host_Gans
+   user = "root"
+   password =password_Gans
+   port = 3306
+   connection_string = f'mysql+pymysql://{user}:{password}@{host}:{port}/{schema}'
+   from_sql = pd.read_sql('city', con=connection_string)
+   cities= list(from_sql['cityname'])
+   #cities =['Berlin', 'Hamburg', 'Munich']
+   headers = {
+    'User-Agent': 'YourAppName/1.0 (your_email@example.com)'
+     }
+   API_key=weather_API_key
+   weather=[]
+   for city in cities:
+        response = requests.get('https://nominatim.openstreetmap.org/search', params={'q': city, 'format': 'json'}, headers=headers)
+        data = response.json()
+        lat=data[0]['lat']
+        lon=data[0]['lon']
+        response=requests.get(f"https://api.openweathermap.org/data/2.5/forecast?lat={lat}&lon={lon}&appid={API_key}&units=metric")
+        weather.append(response.json())
+
+   weather_dic={'cityname':[],	'forecast_time':[],	'outlook':[],	'temperature':[],	'feels_like':[],	'wind_speed':[],	'rain_prob':[]}
+   for i in range(len(weather)):
+        for j in range(len(weather[i]['list'])):
+            weather_dic['cityname'].append(cities[i])
+            weather_dic['forecast_time'].append(weather[i]['list'][j]['dt_txt'])
+            weather_dic['outlook'].append(weather[i]['list'][j]['weather'][0]['main'])
+            weather_dic['temperature'].append(weather[i]['list'][j]['main']['temp'])
+            weather_dic['feels_like'].append(weather[i]['list'][j]['main']['feels_like'])
+            weather_dic['wind_speed'].append(weather[i]['list'][j]['wind']['speed'])
+            try:
+                weather_dic['rain_prob'].append(weather[i]['list'][j]['pop'])
+
+            except:
+                weather_dic['rain_prob'].append(-1)
+   weather_df=pd.DataFrame(weather_dic)
+   def weather(weather_df):
+        schema = "Gans"
+        host = host_Gans
+        user = "root"
+        password = password_Gans
+        port = 3306     
+        connection_string = f'mysql+pymysql://{user}:{password}@{host}:{port}/{schema}'
+        city_fromSQL=pd.read_sql('city', con=connection_string)
+        weather_df =weather_df.merge(city_fromSQL, on='cityname', how='left')
+        weather_df= weather_df.drop('cityname', axis=1)
+        weather_df['forecast_time']=pd.to_datetime(weather_df['forecast_time'])
+        weather_df.to_sql('weather',if_exists='append', con= connection_string,index=False)
+   
+   weather(weather_df)
+   return 'done'
